@@ -59,9 +59,7 @@ def main(container: str, prefix: str = "") -> None:
     # A Dataset is not generic, so the row shape each stage produces is
     # recorded here instead. One row per file:
     #   {bytes: bytes, path: str}
-    documents: ray.data.Dataset = ray.data.read_binary_files(
-        source, include_paths=True
-    )
+    documents: ray.data.Dataset = ray.data.read_binary_files(source, include_paths=True)
 
     # One row per chunk: {text: str, metadata: dict} — metadata carries
     # filename, type, chunk_index, chunk_hash and ingested_at.
@@ -71,9 +69,9 @@ def main(container: str, prefix: str = "") -> None:
         num_cpus=1,
     )
 
-    # Materialised because two branches read it. Left lazy, each branch would
-    # re-run parsing from scratch, and every file would be parsed twice.
-    chunks = chunks.materialize()
+    # checkpoint the chunks into memory (cluster RAM);
+    # why: two branches read that copy
+    chunks: ray.data.Dataset = chunks.materialize()
 
     # Chunk rows plus {vector: list[float]}.
     vectors: ray.data.Dataset = chunks.map_batches(

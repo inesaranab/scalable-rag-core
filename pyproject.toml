@@ -3,6 +3,8 @@ name = "scalable-rag-core"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
+    "azure-identity>=1.25.3",
+    "azure-storage-blob>=12.30.0",
     "beautifulsoup4>=4.15.0",
     "httpx>=0.28.1",
     "langchain-text-splitters>=1.1.2",
