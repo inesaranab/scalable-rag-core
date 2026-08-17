@@ -1,11 +1,13 @@
-.PHONY: help install dev up down deploy infra test size weigh
+.PHONY: help install dev up down deploy infra test size weigh logs run-local
 
 help:
 	@echo "RAG Platform Commands:"
 	@echo "  make install  - Install Python dependencies"
 	@echo "  make dev      - Run FastAPI server locally"
-	@echo "  make up       - Start local DBs (Docker)"
+	@echo "  make up       - Start local DBs (Docker, detached)"
 	@echo "  make down     - Stop local DBs"
+	@echo "  make logs     - Follow the local DBs' logs"
+	@echo "  make run-local - Run the pipeline locally into Qdrant"
 	@echo "  make infra    - Apply Terraform"
 	@echo "  make deploy   - Deploy to Azure AKS via Helm"
 	@echo "  make test     - Run the test suite"
@@ -21,6 +23,14 @@ up:
 
 down:
 	docker compose down
+
+# Stream the containers' logs; Ctrl+C detaches without stopping them.
+logs:
+	docker compose logs -f
+
+# The whole pipeline on this machine: real Ray, real Qdrant, fake embedder.
+run-local:
+	QDRANT_HOST=localhost PYTHONPATH=. uv run python scripts/run_local.py
 
 # Run the API locally, reloading on change
 dev:
