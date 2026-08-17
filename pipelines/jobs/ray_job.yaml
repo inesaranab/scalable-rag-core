@@ -1,0 +1,33 @@
+# Submitted to the cluster's head node, which distributes the work.
+#
+# This is the standalone `ray job submit` form, for a cluster reached
+# directly. Deployed on Kubernetes, this content migrates into a KubeRay
+# RayJob manifest (deploy/ray/), embedded under `runtimeEnvYAML` — the
+# docs' Option 4 — and submission becomes `kubectl apply`.
+#
+# Format:
+#   https://docs.ray.io/en/latest/cluster/running-applications/job-submission/quickstart.html
+# runtime_env fields:
+#   https://docs.ray.io/en/latest/ray-core/handling-dependencies.html
+#
+# The runtime environment is declared here rather than baked into an image so
+# a dependency change does not require rebuilding and pushing one. Workers
+# install these before the entrypoint runs.
+entrypoint: "python pipelines/ingestion/main.py --container documents"
+
+runtime_env:
+  working_dir: "./"
+  # A second dependency list, and it does not know about pyproject.toml.
+  # When a dependency is added there, it must be added here too, or workers
+  # fail at runtime on the missing import.
+  pip:
+    - azure-storage-blob
+    - azure-identity
+    - qdrant-client
+    - neo4j
+    - langchain-text-splitters
+    - python-docx
+    - beautifulsoup4
+    - "unstructured[pdf]"
+    - httpx
+    - pyyaml

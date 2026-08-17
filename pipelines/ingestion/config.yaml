@@ -1,0 +1,35 @@
+chunking:
+  # Large enough to carry an argument, small enough that retrieval returns the
+  # relevant passage rather than the page around it.
+  chunk_size: 512
+
+  # Overlap keeps a sentence split across a boundary readable in both chunks.
+  chunk_overlap: 50
+
+  # Tried in order, so a chunk breaks at a paragraph where it can and falls
+  # back to sentence, word, then character only when it must.
+  separators: ["\n\n", "\n", " ", ""]
+
+embedding:
+  # Resolves to the Ray Serve deployment inside the cluster.
+  endpoint: "http://ray-serve-embed:8000/embed"
+
+  # Chunks per request. Larger batches use the GPU better and cost more memory.
+  batch_size: 100
+
+graph:
+  # Simultaneous extraction calls. Bounds both throughput and spend, since
+  # entity extraction is one model call per chunk.
+  concurrency: 10
+
+  # Discard entities and relationships outside the declared ontology rather
+  # than admitting whatever the model invents, which keeps the graph queryable.
+  enforce_schema: true
+
+vector_db:
+  collection_name: "rag_collection"
+
+  # Compares direction and ignores magnitude, which suits normalised
+  # embeddings. Must match how the collection was created; changing it later
+  # means reindexing.
+  distance_metric: "Cosine"
