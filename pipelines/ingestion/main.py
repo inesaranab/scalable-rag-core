@@ -56,9 +56,16 @@ def main(container: str, prefix: str = "") -> None:
     source = f"az://{container}/{prefix}"
     logger.info("reading from %s", source)
 
-    documents = ray.data.read_binary_files(source, include_paths=True)
+    # A Dataset is not generic, so the row shape each stage produces is
+    # recorded here instead. One row per file:
+    #   {bytes: bytes, path: str}
+    documents: ray.data.Dataset = ray.data.read_binary_files(
+        source, include_paths=True
+    )
 
-    chunks = documents.map_batches(
+    # One row per chunk: {text: str, metadata: dict} — metadata carries
+    # filename, type, chunk_index, chunk_hash and ingested_at.
+    chunks: ray.data.Dataset = documents.map_batches(
         process_batch,
         batch_size=PARSE_BATCH_SIZE,
         num_cpus=1,
@@ -68,14 +75,17 @@ def main(container: str, prefix: str = "") -> None:
     # re-run parsing from scratch, and every file would be parsed twice.
     chunks = chunks.materialize()
 
-    vectors = chunks.map_batches(
+    # Chunk rows plus {vector: list[float]}.
+    vectors: ray.data.Dataset = chunks.map_batches(
         BatchEmbedder,
         concurrency=EMBED_CONCURRENCY,
         num_gpus=EMBED_GPU_FRACTION,
         batch_size=EMBED_BATCH_SIZE,
     )
 
-    graphs = chunks.map_batches(
+    # Chunk rows plus {graph_nodes: list, graph_edges: list}, one list each
+    # per chunk.
+    graphs: ray.data.Dataset = chunks.map_batches(
         GraphExtractor,
         concurrency=EXTRACT_CONCURRENCY,
         batch_size=EXTRACT_BATCH_SIZE,
