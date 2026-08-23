@@ -21,3 +21,10 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# Private / local-only
+CLAUDE.md
+.claude/
+.mcp.json
+.vscode/
+scripts/
