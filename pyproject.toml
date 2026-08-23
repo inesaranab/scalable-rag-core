@@ -1,19 +1,36 @@
 [project]
 name = "scalable-rag-core"
 version = "0.1.0"
-requires-python = ">=3.14"
+requires-python = ">=3.12, <3.13"
 dependencies = [
+    "aiosqlite>=0.22.1",
+    "asyncpg>=0.31.0",
     "azure-identity>=1.25.3",
     "azure-storage-blob>=12.30.0",
+    "bcrypt>=5.0.0",
     "beautifulsoup4>=4.15.0",
+    "fakeredis>=2.37.1",
+    "greenlet>=3.5.5",
     "httpx>=0.28.1",
     "langchain-text-splitters>=1.1.2",
+    "langgraph>=1.2.11",
     "neo4j>=6.2.0",
+    "opentelemetry-api>=1.44.0",
+    "opentelemetry-instrumentation-fastapi>=0.65b0",
+    "opentelemetry-sdk>=1.44.0",
+    "pydantic-settings>=2.15.0",
     "python-docx>=1.2.0",
+    "python-jose[cryptography]>=3.5.0",
+    "python-multipart>=0.0.32",
     "pyyaml>=6.0.3",
     "qdrant-client>=1.19.0",
     "ray[data]>=2.57.0",
+    "redis>=8.1.0",
+    "sentence-transformers>=6.0.0",
+    "sqlmodel>=0.0.39",
     "unstructured[pdf]>=0.25.2",
+    "vllm ; sys_platform == 'darwin'",
+    "vllm-metal ; sys_platform == 'darwin'",
 ]
 
 [dependency-groups]
@@ -26,3 +43,16 @@ dev = [
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+
+[tool.uv]
+# The macOS vllm wheel requires torch==2.13.0+cpu, which has no build for
+# Intel Macs. Only the platforms we actually run on: Apple Silicon locally,
+# Linux in the cluster.
+environments = [
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "sys_platform == 'linux'",
+]
+
+[tool.uv.sources]
+vllm = { url = "https://github.com/vllm-project/vllm/releases/download/v0.27.1/vllm-0.27.1+cpu-cp312-cp312-macosx_11_0_arm64.whl", marker = "sys_platform == 'darwin'" }
+
