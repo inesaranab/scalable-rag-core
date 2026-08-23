@@ -9,6 +9,43 @@ Two properties drive every choice below: **retrieval is hybrid** (vector plus
 graph, not either alone), and **nothing is a managed AI service** — models,
 vector store and graph all run on cluster nodes the project owns.
 
+## Where the build stands (2026-08-23)
+
+Everything below is written test-first and green (210 tests). The request
+path runs end to end against real local infrastructure (docker compose:
+Qdrant, Neo4j, Redis, Postgres), including the agent; what is missing is
+the cloud deployment.
+
+**Built and tested:**
+
+| Piece | File | State |
+|---|---|---|
+| LLM serving | `services/api/app/models/vllm_engine.py` | Qwen2.5-32B-AWQ on vLLM, 1 GPU/replica, settings read from `models/llm/qwen2.5-32b-awq.yaml` |
+| Embedding serving | `services/api/app/models/embedding_engine.py` | BGE-M3, `to_thread` around encode, hand-rolled dynamic batching: concurrent requests within a 10 ms window share one model pass |
+| Model configs | `services/api/app/models/model_config.py` | Typed pydantic schemas; a typoed yaml key fails at load naming the key |
+| Read path | `services/api/app/retrieval.py` | embed → search → compose → answer; vendor-free |
+| Ports | `services/api/app/ports.py` | `Embedder`, `VectorStore`, `LLM` protocols — consumer-owned, structurally satisfied |
+| Embed client | `services/api/app/clients/ray_embed.py` | One pooled `httpx.AsyncClient` per process, `exponential_backoff` from `libs/retry` |
+| LLM client | `services/api/app/clients/ray_llm.py` | Same pattern, 120 s timeout, answer extracted from the serve response shape |
+| Vector store adapter | `services/api/app/stores/qdrant_store.py` | Real Qdrant engine (tests run it in-memory); idempotent `ensure_collection` |
+| Composition root | `services/api/app/main.py` | FastAPI lifespan opens pools once, builds the service, `POST /ask`; dependencies injected via `Depends`, overridable in tests |
+| Settings | `services/api/app/config.py` | pydantic-settings; env overrides typed defaults, validated at boot |
+| Graph store | `services/api/app/stores/neo4j_store.py` | Parametrized Cypher lookup of an entity's relationships |
+| Auth | `services/api/app/auth.py` + `routes/auth.py` | bcrypt-hashed users in Postgres, `/token` login (OAuth2 password form), JWT verified per request |
+| Caches | `services/api/app/stores/redis_gateway.py`, `stores/semantic_cache.py` | `/ask` answers in layers: exact Redis cache, embedding-similarity cache, models |
+| Rate limiting | `routes/ask.py` | Per-JWT-subject counter in Redis, 429 over the limit |
+| Conversation memory | `services/api/app/stores/postgres_memory.py` | Turns per session in Postgres; both `/ask` and `/agent/ask` read and record with a `session_id` |
+| The agent | `services/api/app/agents/` | A LangGraph: planner routes retrieve/tool/respond; hybrid retriever (vector + graph in parallel); ast-based calculator; responder with citation prompt |
+| Query enhancers | `services/api/app/enhancers/` | Coreference rewriter and HyDE in front of the agent's retrieval |
+| Observability | `log_setup.py`, `observability.py`, `routes/health.py` | JSON logs with per-source retrieval counts, OTel tracing, `/health` probing all four databases |
+
+**Not built yet (in order):** the tool sandbox and web search; ingestion
+wired to the live API path; Dockerfile, AKS manifests, and the KubeRay/GPU
+deployment (GPU quota requested in Poland Central).
+
+**Deviations from the target below:** infrastructure work to date targets
+Azure (AKS), not the AWS/Terraform named in the tree.
+
 ## Request path
 
 ```mermaid
