@@ -89,9 +89,13 @@ def main(container: str, prefix: str = "") -> None:
         batch_size=EXTRACT_BATCH_SIZE,
     )
 
-    # Requesting the writes is what makes the branches run.
-    vectors.write_datasink(QdrantSink())
+    # Sink: where a datapipeline ends
+    # 1. QdrantSink() → __init__ runs, on your laptop. Ordinary object.
+    # 2. write_datasink(sink) → now Ray pickles it.
+    # 3. Workers unpickle their copies.
+    # 4. write() runs on each copy — connection opens here.
     graphs.write_datasink(Neo4jSink())
+    vectors.write_datasink(QdrantSink())
 
     logger.info("ingestion complete")
 
