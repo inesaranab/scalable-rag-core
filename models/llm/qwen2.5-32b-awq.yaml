@@ -1,0 +1,23 @@
+# models/llm/qwen2.5-32b-awq.yaml
+model_config:
+  # HuggingFace Model ID -- official AWQ checkpoint from the Qwen team
+  model_id: "Qwen/Qwen2.5-32B-Instruct-AWQ"
+
+  # Quantization: AWQ (4-bit). The checkpoint is already quantized; this flag
+  # tells vLLM to expect AWQ weights, it does not quantize at load time.
+  quantization: "awq"
+
+  # Context Window: Qwen2.5 supports 32k natively. We cap at 8192.
+  max_model_len: 8192
+
+  # Batching: Critical for "1000s of users"
+  max_num_seqs: 128  # Process 128 requests in parallel per replica
+
+  # Fraction of the gpu vllm can take for the models weights and kv cache (intermidiate calculations)
+  gpu_memory_utilization: 0.90
+  # 32B at 4-bit is ~16 GB of weights: one A100 80GB carries it with room for
+  # the KV cache (e.g., 1x Standard_NC24ads_A100_v4), no tensor parallelism.
+  tensor_parallel_size: 1
+
+  # Stop tokens are not configured here: the engine derives them from the
+  # model's own tokenizer at boot, so they cannot drift from the checkpoint.
