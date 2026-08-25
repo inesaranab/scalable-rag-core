@@ -41,6 +41,11 @@ def calculate(expression: str) -> str:
                 Constant(3)  Constant(4)
     """
 
+    # Cap length first: parsing itself can be abused (deep nesting,
+    # memory) and a legitimate expression is never this long.
+    if len(expression) > 100:
+        return "calculator error: expression too long"
+
     def _walk(node: ast.AST) -> float:
         if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
             return node.value

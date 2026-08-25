@@ -14,6 +14,13 @@ def test_the_calculator_does_arithmetic():
     assert calculate("(1 + 2) ** 3 / 9") == "3.0"
 
 
+def test_an_oversized_expression_is_refused_before_parsing():
+    """Length is capped before the parser ever runs."""
+    result = calculate("1+" * 200 + "1")
+
+    assert "error" in result.lower() and "long" in result.lower()
+
+
 def test_the_calculator_refuses_anything_but_arithmetic():
     """Code injection through the expression must come back as an error."""
     result = calculate("__import__('os').system('rm -rf /')")
