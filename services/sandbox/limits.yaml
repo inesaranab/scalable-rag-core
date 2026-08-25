@@ -1,0 +1,9 @@
+# Resource ceilings for the sandbox pod, applied by the K8s deployment.
+# A while-True loop or a memory bomb kills this pod alone, never the node.
+runtime:
+  timeout_seconds: 10        # runner kills the child before this
+  memory_limit_mb: 512       # matches MEMORY_LIMIT_BYTES in runner.py
+  cpu_limit: 0.5
+  allow_network: false       # enforced by network-policy.yaml
+files:
+  max_input_size_mb: 5
