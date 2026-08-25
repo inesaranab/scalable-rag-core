@@ -1,6 +1,6 @@
 """Feedback: POST /feedback records a user's verdict on an answer."""
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from services.api.app.routes.ask import enforce_rate_limit
@@ -31,7 +31,18 @@ async def submit_feedback(
     request: Request,
     claims: dict = Depends(enforce_rate_limit),
 ) -> dict:
-    """Record the caller's verdict. The author comes from the JWT."""
+    """Record the caller's verdict on their own session.
+
+    The author comes from the JWT, never from the body.
+
+    Raises:
+        HTTPException: 403 when the session already carries verdicts from
+            another user — session ids are guessable, and scoring a
+            stranger's conversation would poison the quality signal.
+    """
+    existing = await request.app.state.feedback.for_session(body.session_id)
+    if any(row.user_id != claims["sub"] for row in existing):
+        raise HTTPException(status_code=403, detail="not your session")
     await request.app.state.feedback.add(
         session_id=body.session_id,
         user_id=claims["sub"],

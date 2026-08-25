@@ -42,3 +42,18 @@ async def test_two_uploads_of_the_same_filename_do_not_collide():
     second = await _post({"filename": "a.txt", "content_type": "text/plain"})
 
     assert first.json()["blob_name"] != second.json()["blob_name"]
+
+
+async def test_a_filename_with_reserved_characters_is_encoded():
+    """Unencoded ? or # would truncate the URL relative to the signed blob."""
+    response = await _post(
+        {"filename": "report #2 (final)?.txt", "content_type": "text/plain"}
+    )
+
+    body = response.json()
+    url = body["upload_url"]
+    # The blob part of the URL must not contain raw reserved characters.
+    blob_part = url.split("?")[0]
+    assert "#" not in blob_part
+    assert " " not in blob_part
+    assert body["blob_name"].endswith("report #2 (final)?.txt")

@@ -122,3 +122,18 @@ async def test_an_llm_crash_falls_back_to_retrieve():
     update = await planner(_state("what is qdrant?"))
 
     assert update["route"] == "retrieve"
+
+
+async def test_a_whitespace_only_docstring_does_not_crash_the_planner():
+    """Falsy-empty is handled by `or`; whitespace-only is not."""
+
+    async def blank_tool(query: str) -> list[str]:
+        """   """
+        return []
+
+    llm = ScriptedLLM(json.dumps({"action": "respond", "reasoning": "hi"}))
+    planner = make_planner(llm, tools={"blank_tool": blank_tool})
+
+    update = await planner(_state("hola"))
+
+    assert update["route"] == "respond"

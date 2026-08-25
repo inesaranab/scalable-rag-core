@@ -37,6 +37,9 @@ def make_web_search(client: httpx.AsyncClient, api_key: str):
                 json={"api_key": api_key, "query": query, "max_results": 3},
                 timeout=15.0,
             )
+            # An error body parses as JSON too: without this, a 401 for a
+            # bad key would read as "no results" instead of a failure.
+            response.raise_for_status()
             results = response.json().get("results", [])
             return [f"{r['title']}: {r['content']}" for r in results]
         except Exception:

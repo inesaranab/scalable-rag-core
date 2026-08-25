@@ -48,10 +48,30 @@ async def chat_stream(
     state = request.app.state
     session_id = body.session_id or str(uuid.uuid4())
 
+    async def record(answer: str) -> None:
+        """Append this turn's pair to the conversation.
+
+        Every path that produces an answer records it, cached or not:
+        a hole in the history is what the rewriter would later resolve
+        a pronoun against.
+
+        Args:
+            answer: The assistant's reply to store beside the message.
+        """
+        await state.memory.add_message(
+            session_id, "user", body.message, user_id=claims["sub"]
+        )
+        await state.memory.add_message(
+            session_id, "assistant", answer, user_id=claims["sub"]
+        )
+
     cached = await state.semantic_cache.get(body.message)
     if cached is not None:
         async def stream_cached() -> AsyncGenerator[str, None]:
-            yield json.dumps({"type": "answer", "content": cached}) + "\n"
+            yield json.dumps({
+                "type": "answer", "content": cached, "session_id": session_id
+            }) + "\n"
+            await record(cached)
 
         return StreamingResponse(
             stream_cached(), media_type="application/x-ndjson"
@@ -73,16 +93,16 @@ async def chat_stream(
             node_update = event[node_name]
             if node_name == "responder" and "messages" in node_update:
                 answer = node_update["messages"][-1]["content"]
-                yield json.dumps({"type": "answer", "content": answer}) + "\n"
+                # session_id travels with the answer: a caller who sent
+                # none cannot continue the conversation without it.
+                yield json.dumps({
+                    "type": "answer", "content": answer,
+                    "session_id": session_id,
+                }) + "\n"
 
         # After the stream: record only completed turns.
         if answer:
-            await state.memory.add_message(
-                session_id, "user", body.message, user_id=claims["sub"]
-            )
-            await state.memory.add_message(
-                session_id, "assistant", answer, user_id=claims["sub"]
-            )
+            await record(answer)
             await state.semantic_cache.set(body.message, answer)
 
     return StreamingResponse(events(), media_type="application/x-ndjson")

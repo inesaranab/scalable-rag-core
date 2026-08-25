@@ -31,6 +31,22 @@ _TOOL_SECTION = """
 """
 
 
+def _first_line(docstring: str | None) -> str:
+    """Return a docstring's summary line, or a stand-in when it has none.
+
+    Args:
+        docstring: The tool's docstring, possibly absent or blank.
+
+    Returns:
+        The first non-empty line, or "no description" when the docstring
+        is missing, empty, or only whitespace.
+    """
+    for line in (docstring or "").strip().splitlines():
+        if line.strip():
+            return line.strip()
+    return "no description"
+
+
 def _describe(tools: dict) -> str:
     """Render the tools' docstrings as the model's menu of actions.
 
@@ -49,8 +65,7 @@ def _describe(tools: dict) -> str:
     if not tools:
         return ""
     lines = "\n".join(
-        f"        - {name}: {(fn.__doc__ or 'no description').strip().splitlines()[0]}"
-        for name, fn in tools.items()
+        f"        - {name}: {_first_line(fn.__doc__)}" for name, fn in tools.items()
     )
     return _TOOL_SECTION.format(tool_lines=lines)
 

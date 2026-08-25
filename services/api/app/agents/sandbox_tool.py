@@ -38,9 +38,12 @@ def make_sandbox_tool(client: httpx.AsyncClient, endpoint: str):
                 endpoint, json={"code": code, "timeout": 5}, timeout=10.0
             )
             body = response.json()
+            # .get on both branches: a success without "output" is a
+            # malformed answer, not an unreachable sandbox.
+            output = body.get("output", response.text)
             if body.get("status") == "success":
-                return [f"Code output:\n{body['output']}"]
-            return [f"Code execution error:\n{body.get('output', response.text)}"]
+                return [f"Code output:\n{output}"]
+            return [f"Code execution error:\n{output}"]
         except Exception:
             logger.warning("sandbox unreachable", exc_info=True)
             return ["Code execution unavailable: the sandbox did not answer."]

@@ -66,3 +66,21 @@ async def test_a_score_outside_the_range_is_rejected(store):
 
     app.dependency_overrides.clear()
     assert response.status_code == 422
+
+
+async def test_a_caller_cannot_score_someone_elses_session(store):
+    """Ownership is checked against the token, not taken from the body."""
+    await store.add(session_id="theirs", user_id="maarten", score=1)
+    app.state.feedback = store
+    app.dependency_overrides[enforce_rate_limit] = _authorized
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://api.test"
+    ) as client:
+        response = await client.post(
+            "/feedback", json={"session_id": "theirs", "score": -1}
+        )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 403

@@ -19,6 +19,13 @@ _OPERATORS = {
     ast.USub: op.neg, ast.UAdd: op.pos,
 }
 
+# Exponentiation is the one operator whose cost explodes with tiny input:
+# 9**9**9 is seven characters and computes a number with 370 million
+# digits, blocking the worker that runs it. Length caps cannot catch it,
+# so the exponent and the base are bounded directly.
+MAX_EXPONENT = 1_000
+MAX_POWER_BASE = 1_000_000
+
 
 def calculate(expression: str) -> str:
     """Evaluate a pure-arithmetic expression.
@@ -50,7 +57,15 @@ def calculate(expression: str) -> str:
         if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
             return node.value
         if isinstance(node, ast.BinOp) and type(node.op) in _OPERATORS:
-            return _OPERATORS[type(node.op)](_walk(node.left), _walk(node.right))
+            left, right = _walk(node.left), _walk(node.right)
+            if isinstance(node.op, ast.Pow) and (
+                abs(right) > MAX_EXPONENT or abs(left) > MAX_POWER_BASE
+            ):
+                raise ValueError(
+                    f"power too large: bases are capped at {MAX_POWER_BASE} "
+                    f"and exponents at {MAX_EXPONENT}"
+                )
+            return _OPERATORS[type(node.op)](left, right)
         if isinstance(node, ast.UnaryOp) and type(node.op) in _OPERATORS:
             return _OPERATORS[type(node.op)](_walk(node.operand))
         raise ValueError(f"not arithmetic: {ast.dump(node)[:50]}")

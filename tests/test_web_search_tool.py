@@ -39,3 +39,13 @@ async def test_a_dead_provider_degrades_to_a_message():
 
     [result] = await search("anything")
     assert "error" in result.lower()
+
+
+async def test_an_error_status_is_reported_not_read_as_zero_results():
+    def handler(request):
+        return httpx.Response(401, json={"error": "bad key"})
+
+    search = _tool(handler)
+
+    [result] = await search("anything")
+    assert "error" in result.lower()

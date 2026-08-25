@@ -99,4 +99,25 @@ async def test_a_semantic_hit_streams_the_cached_answer_only(client):
 
     events = await _lines(client, {"message": "explain k8s"})
 
-    assert events == [{"type": "answer", "content": "cached by meaning"}]
+    [answer] = events  # a hit streams the answer alone: no node statuses
+    assert answer["type"] == "answer"
+    assert answer["content"] == "cached by meaning"
+
+
+async def test_a_minted_session_id_is_returned_to_the_client(client):
+    """Without it the client cannot continue the conversation it just started."""
+    events = await _lines(client, {"message": "hola"})
+
+    answers = [e for e in events if e["type"] == "answer"]
+    assert answers[-1].get("session_id"), "the client never learns its session id"
+
+
+async def test_a_cache_hit_still_records_both_turns(client):
+    """A hole in the history would make the rewriter resolve against nothing."""
+    app.state.semantic_cache = FakeSemanticCache(hit="cached by meaning")
+    memory = app.state.memory
+
+    await _lines(client, {"message": "explain k8s", "session_id": "s1"})
+
+    assert ("s1", "user", "explain k8s", "ines") in memory.added
+    assert ("s1", "assistant", "cached by meaning", "ines") in memory.added

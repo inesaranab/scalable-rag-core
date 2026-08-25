@@ -32,9 +32,15 @@ def build_agent_graph(llm, embedder, vector_store, graph_store, top_k,
         The compiled graph; run it with ``await agent.ainvoke(state)``.
     """
     graph = StateGraph(AgentState)
-    # The planner is shown the same tools the tool node can run, so the
-    # menu it offers the model cannot drift from what exists.
-    graph.add_node("planner", make_planner(llm, tools={**tools, "calculator": calculate}))
+    # The planner is shown the tools the tool node can run, so its menu
+    # cannot drift from what exists — minus vector_search, which the
+    # "retrieve" route already covers with query rewriting and HyDE in
+    # front of it. Offering both would let the model pick the weaker one.
+    planner_tools = {
+        name: fn for name, fn in tools.items() if name != "vector_search"
+    }
+    planner_tools["calculator"] = calculate
+    graph.add_node("planner", make_planner(llm, tools=planner_tools))
     graph.add_node("retriever", make_retriever(
         embedder, vector_store, graph_store, top_k, rewriter, hyde
     ))

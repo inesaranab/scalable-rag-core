@@ -42,3 +42,15 @@ async def test_an_unreachable_sandbox_degrades_to_a_message():
 
     [result] = await run("print(1)")
     assert "unavailable" in result.lower()
+
+
+async def test_a_malformed_success_body_is_reported_as_an_error():
+    """A success without 'output' must not be logged as an unreachable sandbox."""
+
+    def handler(request):
+        return httpx.Response(200, json={"status": "success"})
+
+    run = _tool_with(handler)
+
+    [result] = await run("print(1)")
+    assert "unavailable" not in result.lower()

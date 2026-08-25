@@ -8,6 +8,7 @@ cheap part: naming the blob and signing the link.
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from urllib.parse import quote
 
 from azure.storage.blob import BlobSasPermissions, BlobServiceClient, generate_blob_sas
 from fastapi import APIRouter, Depends, Request
@@ -59,6 +60,12 @@ async def presigned_url(
         account_key=service.credential.account_key,
         permission=BlobSasPermissions(write=True, create=True),
         expiry=datetime.now(UTC) + timedelta(hours=1),
+        # Pin the content type into the signature; otherwise the field is
+        # decoration and the client may upload anything it likes.
+        content_type=body.content_type,
     )
-    upload_url = f"{service.url}{settings.azure_storage_container}/{blob_name}?{sas}"
+    # Percent-encode the path: a raw "?" or "#" in a filename would
+    # truncate the URL, addressing a different blob than the one signed.
+    encoded = quote(blob_name, safe="/")
+    upload_url = f"{service.url}{settings.azure_storage_container}/{encoded}?{sas}"
     return {"upload_url": upload_url, "blob_name": blob_name}

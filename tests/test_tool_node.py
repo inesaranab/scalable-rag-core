@@ -70,3 +70,19 @@ async def test_an_unknown_tool_degrades_into_a_note():
 
     [note] = update["documents"]
     assert "time_machine" in note and "unknown" in note.lower()
+
+
+def test_an_exponent_bomb_is_refused_not_computed():
+    """9**9**9 is seven characters and would block the event loop."""
+    import time
+
+    start = time.monotonic()
+    result = calculate("9**9**9")
+    elapsed = time.monotonic() - start
+
+    assert "error" in result.lower()
+    assert elapsed < 1.0
+
+
+def test_ordinary_powers_still_work():
+    assert calculate("2**10") == "1024"

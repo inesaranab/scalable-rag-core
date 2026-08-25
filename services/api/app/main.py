@@ -124,28 +124,34 @@ async def lifespan(app: FastAPI):
 
     # The agent behind /agent/ask: a LangGraph the planner steers.
     sandbox_http = httpx.AsyncClient()
-    tools = build_tools(
-        embed_client, store, graph_store, settings.retrieval_top_k
-    )
-    tools["python_sandbox"] = make_sandbox_tool(
-        sandbox_http, endpoint=settings.sandbox_endpoint
-    )
-    # Entity extraction replaces exact-match lookup: natural questions
-    # are not node names, so the raw query almost never matched.
-    tools["graph_lookup"] = make_entity_graph_search(llm, graph_store)
-    tools["web_search"] = make_web_search(
-        sandbox_http, api_key=settings.tavily_api_key.get_secret_value()
-    )
-    app.state.agent = build_agent_graph(
-        llm=llm,
-        embedder=embed_client,
-        vector_store=store,
-        graph_store=graph_store,
-        top_k=settings.retrieval_top_k,
-        rewriter=make_rewriter(llm),
-        hyde=make_hyde(llm),
-        tools=tools,
-    )
+    # Closed on a failed boot too: the shutdown block below only runs
+    # after the yield, so an exception here would leak the pool.
+    try:
+        tools = build_tools(
+            embed_client, store, graph_store, settings.retrieval_top_k
+        )
+        tools["python_sandbox"] = make_sandbox_tool(
+            sandbox_http, endpoint=settings.sandbox_endpoint
+        )
+        # Entity extraction replaces exact-match lookup: natural questions
+        # are not node names, so the raw query almost never matched.
+        tools["graph_lookup"] = make_entity_graph_search(llm, graph_store)
+        tools["web_search"] = make_web_search(
+            sandbox_http, api_key=settings.tavily_api_key.get_secret_value()
+        )
+        app.state.agent = build_agent_graph(
+            llm=llm,
+            embedder=embed_client,
+            vector_store=store,
+            graph_store=graph_store,
+            top_k=settings.retrieval_top_k,
+            rewriter=make_rewriter(llm),
+            hyde=make_hyde(llm),
+            tools=tools,
+        )
+    except Exception:
+        await sandbox_http.aclose()
+        raise
     yield
     # Shutdown: close the pools' sockets deliberately.
     await embed_client.close()
