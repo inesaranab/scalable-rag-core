@@ -21,6 +21,44 @@ class User(SQLModel, table=True):
     password_hash: str
 
 
+# table = True -> this class is a real database table
+class Feedback(SQLModel, table=True):
+    """One user verdict on one answer, kept for future training data.
+
+    Attributes:
+        id: Auto-incremented row id.
+        session_id: The conversation the verdict belongs to; indexed.
+        user_id: Who judged; the JWT subject, never client-supplied.
+        message_id: Which turn was judged, when the client tracks turns.
+        score: -1 (bad) to 1 (good).
+        comment: Free-text explanation, optional.
+        created_at: When the verdict arrived; timezone-aware UTC.
+    """
+
+    __tablename__ = "feedback"
+
+    id: int | None = Field(
+        default=None, primary_key=True
+    )  # None: describes the state before the insert
+    session_id: str = Field(
+        index=True
+    )  # tha database builds a lookup structure on that column
+    # WHERE session_id = 's1' finds instantly instead of scanning the table
+    user_id: str
+    message_id: str | None = None
+    score: int
+    comment: str | None = None
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(
+            UTC
+        ),  # default_factory wants a funciotn to call per row
+        # wants a callable more precisely a list is a callable
+        # rule: already a function -> pass it bare
+        # an expression pass a lambda
+        sa_column=Column("created_at", DateTime(timezone=True)),
+    )
+
+
 class ChatHistory(SQLModel, table=True):
     """One turn of one conversation, kept for context and audit.
 
