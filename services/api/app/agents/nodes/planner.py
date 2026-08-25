@@ -17,23 +17,52 @@ question and decide ONE action. Reply with ONLY a JSON object:
   {{"action": "retrieve", "refined_query": "<standalone search query>",
     "reasoning": "<one line>"}}
       when the question needs documents from the knowledge base.
-
-  {{"action": "tool", "tool_choice": "calculator",
-    "tool_input": "<expression>", "reasoning": "<one line>"}}
-      when the question is arithmetic or needs a tool.
-
+{tool_section}
   {{"action": "respond", "reasoning": "<one line>"}}
       for greetings, thanks, or questions needing no evidence.
 
 Question: {question}"""
 
+_TOOL_SECTION = """
+  {{"action": "tool", "tool_choice": "<one of the tools below>",
+    "tool_input": "<what to pass it>", "reasoning": "<one line>"}}
+      when one of these tools answers the question:
+{tool_lines}
+"""
+
+
+def _describe(tools: dict) -> str:
+    """Render the tools' docstrings as the model's menu of actions.
+
+    A tool's docstring is the only description the model ever sees of
+    it, so generating this section keeps the prompt honest when tools
+    are added or removed.
+
+    Args:
+        tools: Tool name -> async callable.
+
+    Returns:
+        The tool block for the prompt, or an empty string when no tools
+        are available — in which case the model is never offered the
+        tool action at all.
+    """
+    if not tools:
+        return ""
+    lines = "\n".join(
+        f"        - {name}: {(fn.__doc__ or 'no description').strip().splitlines()[0]}"
+        for name, fn in tools.items()
+    )
+    return _TOOL_SECTION.format(tool_lines=lines)
+
 
 # factory function: builds and returns a configured function
-def make_planner(llm):
+def make_planner(llm, tools: dict | None = None):
     """Build the planner node around an injected LLM.
 
     Args:
         llm: Anything with ``async answer(prompt) -> str``.
+        tools: Tool name -> async callable. Their docstrings become the
+            model's menu; no tools means the tool action is not offered.
 
     Returns:
         An async node: state -> partial state with route, current_query,
@@ -43,7 +72,11 @@ def make_planner(llm):
     async def planner(state: dict) -> dict:
         question = state["messages"][-1]["content"]
         try:
-            reply = await llm.answer(_PLAN_PROMPT.format(question=question))
+            reply = await llm.answer(
+                _PLAN_PROMPT.format(
+                    question=question, tool_section=_describe(tools or {})
+                )
+            )
             start, end = reply.index("{"), reply.rindex("}") + 1
             decision = json.loads(reply[start:end])
             action = decision["action"]

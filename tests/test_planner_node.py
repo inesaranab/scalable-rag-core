@@ -20,6 +20,33 @@ def _state(question: str) -> dict:
             "documents": []}
 
 
+async def test_the_prompt_lists_the_tools_it_was_given():
+    """The tools' docstrings are the model's only description of them."""
+
+    async def price_lookup(query: str) -> list[str]:
+        """Look up the current price of a component."""
+        return []
+
+    llm = ScriptedLLM(json.dumps({"action": "respond", "reasoning": "hi"}))
+    planner = make_planner(llm, tools={"price_lookup": price_lookup})
+
+    await planner(_state("hola"))
+
+    [prompt] = llm.prompts
+    assert "price_lookup" in prompt
+    assert "Look up the current price of a component." in prompt
+
+
+async def test_a_planner_without_tools_offers_no_tool_action():
+    llm = ScriptedLLM(json.dumps({"action": "respond", "reasoning": "hi"}))
+    planner = make_planner(llm, tools={})
+
+    await planner(_state("hola"))
+
+    [prompt] = llm.prompts
+    assert '"action": "tool"' not in prompt
+
+
 async def test_a_search_question_routes_to_retrieve():
     llm = ScriptedLLM(json.dumps({
         "action": "retrieve",

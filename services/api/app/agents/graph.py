@@ -10,7 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from services.api.app.agents.nodes.planner import make_planner
 from services.api.app.agents.nodes.responder import make_responder
 from services.api.app.agents.nodes.retriever import make_retriever
-from services.api.app.agents.nodes.tool import make_tool_node
+from services.api.app.agents.nodes.tool import calculate, make_tool_node
 from services.api.app.agents.state import AgentState
 
 
@@ -32,7 +32,9 @@ def build_agent_graph(llm, embedder, vector_store, graph_store, top_k,
         The compiled graph; run it with ``await agent.ainvoke(state)``.
     """
     graph = StateGraph(AgentState)
-    graph.add_node("planner", make_planner(llm))
+    # The planner is shown the same tools the tool node can run, so the
+    # menu it offers the model cannot drift from what exists.
+    graph.add_node("planner", make_planner(llm, tools={**tools, "calculator": calculate}))
     graph.add_node("retriever", make_retriever(
         embedder, vector_store, graph_store, top_k, rewriter, hyde
     ))
