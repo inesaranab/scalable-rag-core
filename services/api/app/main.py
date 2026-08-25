@@ -12,7 +12,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+import httpx
+
 from services.api.app.agents.graph import build_agent_graph
+from services.api.app.agents.sandbox_tool import make_sandbox_tool
 from services.api.app.agents.tools import build_tools
 from services.api.app.clients.neo4j import Neo4jClient
 from services.api.app.clients.postgres import PostgresClient
@@ -26,7 +29,10 @@ from services.api.app.enhancers.query_rewriter import make_rewriter
 from services.api.app.log_setup import setup_logging
 from services.api.app.observability import setup_observability
 from services.api.app.retrieval import RetrievalService
-from services.api.app.routes import agent, ask, auth, health
+from services.api.app.routes import agent, ask, auth, chat, feedback, health, upload
+from services.api.app.stores.postgres_feedback import FeedbackStore
+from services.api.app.tools.graph_search import make_entity_graph_search
+from services.api.app.tools.web_search import make_web_search
 from services.api.app.stores.neo4j_store import Neo4jGraphStore
 from services.api.app.stores.postgres_memory import ChatMemoryStore
 from services.api.app.stores.postgres_users import PostgresUserStore
@@ -84,6 +90,9 @@ async def lifespan(app: FastAPI):
     memory = ChatMemoryStore(postgres.engine)
     await memory.ensure_table()
     app.state.memory = memory
+    feedback_store = FeedbackStore(postgres.engine)
+    await feedback_store.ensure_table()
+    app.state.feedback = feedback_store
 
     neo4j = Neo4jClient(
         settings.neo4j_uri, settings.neo4j_user, settings.neo4j_password
@@ -114,6 +123,19 @@ async def lifespan(app: FastAPI):
     )
 
     # The agent behind /agent/ask: a LangGraph the planner steers.
+    sandbox_http = httpx.AsyncClient()
+    tools = build_tools(
+        embed_client, store, graph_store, settings.retrieval_top_k
+    )
+    tools["python_sandbox"] = make_sandbox_tool(
+        sandbox_http, endpoint=settings.sandbox_endpoint
+    )
+    # Entity extraction replaces exact-match lookup: natural questions
+    # are not node names, so the raw query almost never matched.
+    tools["graph_lookup"] = make_entity_graph_search(llm, graph_store)
+    tools["web_search"] = make_web_search(
+        sandbox_http, api_key=settings.tavily_api_key.get_secret_value()
+    )
     app.state.agent = build_agent_graph(
         llm=llm,
         embedder=embed_client,
@@ -122,9 +144,7 @@ async def lifespan(app: FastAPI):
         top_k=settings.retrieval_top_k,
         rewriter=make_rewriter(llm),
         hyde=make_hyde(llm),
-        tools=build_tools(
-            embed_client, store, graph_store, settings.retrieval_top_k
-        ),
+        tools=tools,
     )
     yield
     # Shutdown: close the pools' sockets deliberately.
@@ -134,6 +154,7 @@ async def lifespan(app: FastAPI):
     await postgres.close()
     await neo4j.close()
     await redis_client.close()
+    await sandbox_http.aclose()
 
 
 app = FastAPI(title="scalable-rag-core API", lifespan=lifespan)
@@ -144,4 +165,7 @@ setup_observability(app, console=Settings().otel_console)
 app.include_router(auth.router)
 app.include_router(ask.router)
 app.include_router(agent.router)
+app.include_router(chat.router)
+app.include_router(feedback.router)
+app.include_router(upload.router)
 app.include_router(health.router)

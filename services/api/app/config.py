@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     ray_embed_endpoint: str = "http://localhost:8001/embed"
     ray_llm_endpoint: str = "http://localhost:8002/chat"
 
+    # Code sandbox (its own service; K8s DNS name in production)
+    sandbox_endpoint: str = "http://localhost:8080/execute"
+
+    # Web search (Tavily). Empty key = the tool reports itself disabled.
+    tavily_api_key: SecretStr = SecretStr("")
+
     # Vector store (Qdrant)
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "chunks"
